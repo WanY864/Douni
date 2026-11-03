@@ -47,7 +47,8 @@ public class DouniDemo : MonoBehaviour {
   memoryModeBtn=Btn(c.transform,"本地记忆：开",new Vector2(0,-205),new Vector2(220,38),ToggleMemory);
   state=Txt(c.transform,"本地代理未检测",new Vector2(0,-285),new Vector2(620,26),15,TextAnchor.MiddleCenter);
   entry=Input(c.transform,new Vector2(-70,-320),new Vector2(470,58));
-  sendBtn=Btn(c.transform,"发送",new Vector2(255,-320),new Vector2(120,58),Send);\n  clearChatBtn=Btn(c.transform,"清空本轮",new Vector2(0,-365),new Vector2(160,42),ClearCurrentChat);
+  sendBtn=Btn(c.transform,"发送",new Vector2(255,-320),new Vector2(120,58),Send);
+  clearChatBtn=Btn(c.transform,"清空本轮",new Vector2(0,-365),new Vector2(160,42),ClearCurrentChat);
  }
  GameObject Rect(Transform parent,string n,Vector2 pos,Vector2 size,Color color){
   var g=new GameObject(n,typeof(RectTransform),typeof(Image));g.transform.SetParent(parent,false);
