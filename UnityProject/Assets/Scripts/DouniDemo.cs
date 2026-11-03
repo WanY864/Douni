@@ -102,7 +102,8 @@ public class DouniDemo : MonoBehaviour {
  void Refresh(){string s="";for(int i=0;i<history[active].Count;i++){var m=history[active][i];if(m.role!="system")s+=(m.role=="user"?"你：":names[active]+"：")+m.content+"\n\n";}log.text=s; if(log.text.Length==0)log.text="你好呀！我是"+names[active]+"，想聊点什么？";}
  void ToggleStream(){if(busy)return;streaming=!streaming;streamModeBtn.GetComponentInChildren<Text>().text="流式输出："+(streaming?"开":"关");}
  void ToggleTyping(){if(busy)return;typingIndicator=!typingIndicator;typingModeBtn.GetComponentInChildren<Text>().text="输入提示："+(typingIndicator?"开":"关");}
- void ClearCurrentChat(){if(busy)return;history[active].Clear();history[active].Add(new DouniMsg("system",prompts[active]));Refresh();state.text="当前角色的临时聊天记录已清空";}\n void ToggleMemory(){if(busy)return;localMemoryEnabled=!localMemoryEnabled;memoryModeBtn.GetComponentInChildren<Text>().text="本地记忆："+(localMemoryEnabled?"开":"关");if(!localMemoryEnabled){DeleteMemoryFile();history[0].Clear();history[1].Clear();EnsureSystemPrompts();Refresh();state.text="本地记忆已关闭并清除";}else{SaveMemory();state.text="本地记忆已开启（仅保存在本机）";}}
+ void ClearCurrentChat(){if(busy)return;history[active].Clear();history[active].Add(new DouniMsg("system",prompts[active]));SaveMemory();Refresh();state.text="当前角色的本地聊天记忆已清空";}
+ void ToggleMemory(){if(busy)return;localMemoryEnabled=!localMemoryEnabled;memoryModeBtn.GetComponentInChildren<Text>().text="本地记忆："+(localMemoryEnabled?"开":"关");if(!localMemoryEnabled){DeleteMemoryFile();history[0].Clear();history[1].Clear();EnsureSystemPrompts();Refresh();state.text="本地记忆已关闭并清除";}else{SaveMemory();state.text="本地记忆已开启（仅保存在本机）";}}
  void EnsureSystemPrompts(){for(int i=0;i<2;i++){if(history[i].Count==0||history[i][0].role!="system")history[i].Insert(0,new DouniMsg("system",prompts[i]));}}
  void LoadMemory(){if(!File.Exists(memoryPath))return;try{var data=JsonUtility.FromJson<DouniMemoryData>(File.ReadAllText(memoryPath,Encoding.UTF8));if(data!=null){history[0]=data.red??new List<DouniMsg>();history[1]=data.blue??new List<DouniMsg>();}}catch{history[0].Clear();history[1].Clear();}}
  void SaveMemory(){if(!localMemoryEnabled)return;try{var data=new DouniMemoryData{red=history[0],blue=history[1]};File.WriteAllText(memoryPath,JsonUtility.ToJson(data,true),Encoding.UTF8);}catch(Exception e){Debug.LogWarning("Douni local memory save failed: "+e.Message);}}
@@ -119,17 +120,17 @@ public class DouniDemo : MonoBehaviour {
   for(int i=firstContext;i<history[npc].Count;i++)context.Add(history[npc][i]);
   var reqBody=JsonUtility.ToJson(new DouniReq{messages=context.ToArray(),stream=streaming});
   using(var req=new UnityWebRequest(proxyUrl,"POST")){
-   req.uploadHandler=new UploadHandlerRaw(Encoding.UTF8.GetBytes(reqBody));req.downloadHandler=new DownloadHandlerBuffer();req.SetRequestHeader("Content-Type","application/json");req.SetRequestHeader("x-deepseek-api-key",apiKey);
+   req.timeout=90;req.uploadHandler=new UploadHandlerRaw(Encoding.UTF8.GetBytes(reqBody));req.downloadHandler=new DownloadHandlerBuffer();req.SetRequestHeader("Content-Type","application/json");req.SetRequestHeader("x-deepseek-api-key",apiKey);
    var op=req.SendWebRequest();int read=0;
    while(!op.isDone){
     if(streaming){string all=req.downloadHandler.text;if(all.Length>read){string fresh=all.Substring(read);read=all.Length;ParseSSE(fresh);}}
     yield return null;
    }
-   if(req.result!=UnityWebRequest.Result.Success){state.text="连接失败："+req.error;busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}
-   if(streaming){ParseSSE(req.downloadHandler.text.Substring(Mathf.Min(read,req.downloadHandler.text.Length)));}
-   else{try{var response=JsonUtility.FromJson<DouniResp>(req.downloadHandler.text);currentReply=response.choices[0].message.content;}catch{currentReply="回复解析失败，请检查代理服务。";}}
+   if(req.result!=UnityWebRequest.Result.Success){state.text="请求失败："+req.error+"（请检查代理、网络、Key 和额度）";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}
+   if(streaming){ParseSSE(req.downloadHandler.text.Substring(Mathf.Min(read,req.downloadHandler.text.Length)));if(string.IsNullOrEmpty(currentReply)){state.text="没有收到有效回复，请重试";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}}
+   else{try{var response=JsonUtility.FromJson<DouniResp>(req.downloadHandler.text);if(response==null||response.choices==null||response.choices.Length==0||response.choices[0].message==null||string.IsNullOrEmpty(response.choices[0].message.content))throw new Exception("empty response");currentReply=response.choices[0].message.content;}catch{state.text="回复格式异常，请检查模型响应后重试";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}}
   }
-  if(first<0)first=Time.realtimeSinceStartup;history[npc].Add(new DouniMsg("assistant",currentReply));SaveMemory();SaveMemory();
+  if(first<0)first=Time.realtimeSinceStartup;history[npc].Add(new DouniMsg("assistant",currentReply));SaveMemory();
   if(!streaming)Refresh();else Refresh();
   LogResult(npc,Time.realtimeSinceStartup-started,(first-started)*1000f);
   busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);state.text="完成 · 首字延迟 "+((first-started)*1000f).ToString("F0")+" ms";
