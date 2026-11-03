@@ -57,13 +57,16 @@ public class DouniDemo : MonoBehaviour {
  }
  void MakeCat(Vector2 pos,Color scarf,out CatEar ears){
   var go=new GameObject("小豆泥猫咪");go.transform.SetParent(transform,false);go.transform.localPosition=pos;go.transform.localScale=Vector3.one*2.4f;
-  var sr=go.AddComponent<SpriteRenderer>();sr.sprite=BuildCatSprite(scarf);ears=go.AddComponent<CatEar>();
+  var sr=go.AddComponent<SpriteRenderer>();sr.sprite=BuildCatSprite(scarf);
+  var earLeft=MakeEar(go.transform,new Vector3(-.48f,1.02f,0),-8f);
+  var earRight=MakeEar(go.transform,new Vector3(.48f,1.02f,0),8f);
+  ears=go.AddComponent<CatEar>();ears.left=earLeft;ears.right=earRight;
  }
  Sprite BuildCatSprite(Color scarf){
   int w=240,h=280;var tex=new Texture2D(w,h,TextureFormat.RGBA32,false);var px=new Color[w*h];Color clear=new Color(0,0,0,0),cream=new Color(1,.94f,.87f),brown=new Color(.62f,.52f,.42f),black=new Color(.04f,.04f,.04f),eyeBlue=new Color(.55f,.82f,.9f);
   for(int i=0;i<px.Length;i++)px[i]=clear;
   Ell(px,w,h,120,105,78,86,cream);Ell(px,w,h,120,184,104,68,cream);
-  Ell(px,w,h,68,248,22,43,brown);Ell(px,w,h,172,248,22,43,brown);
+  
   Ell(px,w,h,42,112,24,26,brown);Ell(px,w,h,198,112,24,26,brown);
   Ell(px,w,h,120,83,83,22,scarf);
   // Eyes are kept at the original reference height; only slightly enlarged. No mouth is drawn.
@@ -72,6 +75,16 @@ public class DouniDemo : MonoBehaviour {
   Ell(px,w,h,89,197,6,7,Color.white);Ell(px,w,h,165,197,6,7,Color.white);
   Ell(px,w,h,120,181,17,19,brown);
   tex.SetPixels(px);tex.Apply();return Sprite.Create(tex,new Rect(0,0,w,h),new Vector2(.5f,.5f),100);
+ }
+ Transform MakeEar(Transform parent,Vector3 pos,float angle){
+  var g=new GameObject("EarPivot");g.transform.SetParent(parent,false);g.transform.localPosition=pos;g.transform.localRotation=Quaternion.Euler(0,0,angle);
+  var sr=g.AddComponent<SpriteRenderer>();sr.sprite=EarSprite();sr.sortingOrder=-1;return g.transform;
+ }
+ Sprite EarSprite(){
+  int w=64,h=90;var tex=new Texture2D(w,h,TextureFormat.RGBA32,false);var px=new Color[w*h];Color clear=new Color(0,0,0,0),brown=new Color(.62f,.52f,.42f),ink=new Color(.04f,.04f,.04f);
+  for(int i=0;i<px.Length;i++)px[i]=clear;
+  for(int y=0;y<h;y++)for(int x=0;x<w;x++){float nx=(x-32f)/29f,ny=(y-8f)/78f;if(ny>=0&&ny<=1&&Mathf.Abs(nx)<(1-ny)*.75f)px[y*w+x]=brown;}
+  tex.SetPixels(px);tex.Apply();return Sprite.Create(tex,new Rect(0,0,w,h),new Vector2(.5f,.08f),100);
  }
  void Ell(Color[] p,int w,int h,float cx,float cy,float rx,float ry,Color c){
   for(int y=Mathf.Max(0,(int)(cy-ry));y<Mathf.Min(h,(int)(cy+ry));y++)for(int x=Mathf.Max(0,(int)(cx-rx));x<Mathf.Min(w,(int)(cx+rx));x++)if(Mathf.Pow((x-cx)/rx,2)+Mathf.Pow((y-cy)/ry,2)<=1)p[y*w+x]=c;
