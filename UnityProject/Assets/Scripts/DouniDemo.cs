@@ -131,9 +131,9 @@ public class DouniDemo : MonoBehaviour {
  void Send(){if(busy||string.IsNullOrWhiteSpace(entry.text))return;string q=entry.text.Trim();entry.text="";history[active].Add(new DouniMsg("user",q));TrimHistory(active);SaveMemory();Refresh();StartCoroutine(RequestReply(active));}
  IEnumerator RequestReply(int npc){
   busy=true;started=Time.realtimeSinceStartup;first=-1;currentReply="";pendingStreamText="";redEar.SetTalking(npc==0);blueEar.SetTalking(npc==1);sendBtn.interactable=false;
-  if(typingIndicator)state.text=names[npc]+" 正在思考…";else state.text=" ";
+  if(typingIndicator)state.text=names[npc]+" is typing…";else state.text=" ";
   string apiKey=apiKeyInput.text.Trim();
-  if(string.IsNullOrEmpty(apiKey)){state.text="请先输入 DeepSeek API Key";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}
+  if(string.IsNullOrEmpty(apiKey)){state.text="Please enter your DeepSeek API Key.";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}
   // App-managed memory: send the recent local chat context explicitly; no provider memory is used.
   var context=new List<DouniMsg>();context.Add(new DouniMsg("system",prompts[npc]));
   int firstContext=Math.Max(1,history[npc].Count-20);
@@ -146,14 +146,14 @@ public class DouniDemo : MonoBehaviour {
     if(streaming){string all=req.downloadHandler.text;if(all.Length>read){string fresh=all.Substring(read);read=all.Length;ParseSSE(fresh);}}
     yield return null;
    }
-   if(req.result!=UnityWebRequest.Result.Success){state.text="请求失败："+req.error+"（请检查代理、网络、Key 和额度）";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}
-   if(streaming){ParseSSE(req.downloadHandler.text.Substring(Mathf.Min(read,req.downloadHandler.text.Length)));if(string.IsNullOrEmpty(currentReply)){state.text="没有收到有效回复，请重试";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}}
-   else{try{var response=JsonUtility.FromJson<DouniResp>(req.downloadHandler.text);if(response==null||response.choices==null||response.choices.Length==0||response.choices[0].message==null||string.IsNullOrEmpty(response.choices[0].message.content))throw new Exception("empty response");currentReply=response.choices[0].message.content;}catch{state.text="回复格式异常，请检查模型响应后重试";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}}
+   if(req.result!=UnityWebRequest.Result.Success){state.text="Request failed: "+req.error+" (check proxy, network, API key and quota).";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}
+   if(streaming){ParseSSE(req.downloadHandler.text.Substring(Mathf.Min(read,req.downloadHandler.text.Length)));if(string.IsNullOrEmpty(currentReply)){state.text="No response received. Please try again.";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}}
+   else{try{var response=JsonUtility.FromJson<DouniResp>(req.downloadHandler.text);if(response==null||response.choices==null||response.choices.Length==0||response.choices[0].message==null||string.IsNullOrEmpty(response.choices[0].message.content))throw new Exception("empty response");currentReply=response.choices[0].message.content;}catch{state.text="Invalid response format. Please try again.";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}}
   }
   if(first<0)first=Time.realtimeSinceStartup;history[npc].Add(new DouniMsg("assistant",currentReply));TrimHistory(npc);SaveMemory();
   if(!streaming)Refresh();else Refresh();
   LogResult(npc,Time.realtimeSinceStartup-started,(first-started)*1000f);
-  busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);state.text="完成 · 首字延迟 "+((first-started)*1000f).ToString("F0")+" ms";
+  busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);state.text="Done · First token: "+((first-started)*1000f).ToString("F0")+" ms";
  }
  string sseRemainder="";
  void ParseSSE(string chunk){
