@@ -1,0 +1,10 @@
+node_modules/
+proxy/.env
+Library/
+Temp/
+Obj/
+Build/
+Builds/
+Logs/
+UserSettings/
+.DS_Store
