@@ -104,8 +104,11 @@ public class DouniDemo : MonoBehaviour {
   if(typingIndicator)state.text=names[npc]+" 正在思考…";else state.text=" ";
   string apiKey=apiKeyInput.text.Trim();
   if(string.IsNullOrEmpty(apiKey)){state.text="请先输入 DeepSeek API Key";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}
-  // Stateless chat: each API request contains only this NPC's system prompt and the current message.
-  var reqBody=JsonUtility.ToJson(new DouniReq{messages=new DouniMsg[]{new DouniMsg("system",prompts[npc]),new DouniMsg("user",history[npc][history[npc].Count-1].content)},stream=streaming});
+  // App-managed memory: explicitly include recent local conversation context in this API request.
+  var context=new List<DouniMsg>();context.Add(new DouniMsg("system",prompts[npc]));
+  int firstContext=Math.Max(1,history[npc].Count-20);
+  for(int i=firstContext;i<history[npc].Count;i++)context.Add(history[npc][i]);
+  var reqBody=JsonUtility.ToJson(new DouniReq{messages=context.ToArray(),stream=streaming});
   using(var req=new UnityWebRequest(proxyUrl,"POST")){
    req.uploadHandler=new UploadHandlerRaw(Encoding.UTF8.GetBytes(reqBody));req.downloadHandler=new DownloadHandlerBuffer();req.SetRequestHeader("Content-Type","application/json");req.SetRequestHeader("x-deepseek-api-key",apiKey);
    var op=req.SendWebRequest();int read=0;
@@ -117,7 +120,7 @@ public class DouniDemo : MonoBehaviour {
    if(streaming){ParseSSE(req.downloadHandler.text.Substring(Mathf.Min(read,req.downloadHandler.text.Length)));}
    else{try{var response=JsonUtility.FromJson<DouniResp>(req.downloadHandler.text);currentReply=response.choices[0].message.content;}catch{currentReply="回复解析失败，请检查代理服务。";}}
   }
-  if(first<0)first=Time.realtimeSinceStartup;history[npc].Add(new DouniMsg("assistant",currentReply));
+  if(first<0)first=Time.realtimeSinceStartup;history[npc].Add(new DouniMsg("assistant",currentReply));SaveMemory();
   if(!streaming)Refresh();else Refresh();
   LogResult(npc,Time.realtimeSinceStartup-started,(first-started)*1000f);
   busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);state.text="完成 · 首字延迟 "+((first-started)*1000f).ToString("F0")+" ms";
@@ -144,6 +147,8 @@ public class DouniDemo : MonoBehaviour {
    }catch{}
   }
  }
+ void OnApplicationQuit(){if(apiKeyInput!=null)apiKeyInput.text="";}
+ void OnDestroy(){if(apiKeyInput!=null)apiKeyInput.text="";}
  void LogResult(int npc,float total,float firstMs){
   string path=Path.Combine(Application.persistentDataPath,"douni-experiment.csv");bool exists=File.Exists(path);
   using(var sw=new StreamWriter(path,true,Encoding.UTF8)){if(!exists)sw.WriteLine("timestamp,npc,streaming,typing_indicator,first_token_ms,total_ms");sw.WriteLine(DateTime.Now.ToString("s")+","+names[npc]+","+streaming+","+typingIndicator+","+firstMs.ToString("F0")+","+(total*1000f).ToString("F0"));}

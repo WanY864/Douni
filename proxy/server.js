@@ -7,7 +7,7 @@ app.post("/chat",async(req,res)=>{
  const key=String(req.get("x-deepseek-api-key")||"").trim();
  if(!key)return res.status(400).json({error:"请在应用界面输入 DeepSeek API Key"});
  const {messages,stream=true}=req.body||{};
- if(!Array.isArray(messages)||!messages.length||messages.length>3)return res.status(400).json({error:"messages 参数无效"});
+ if(!Array.isArray(messages)||!messages.length||messages.length>22)return res.status(400).json({error:"messages 参数无效（最多 22 条）"});
  let upstream;
  try{upstream=await fetch("https://api.deepseek.com/chat/completions",{method:"POST",headers:{Authorization:"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify({model:"deepseek-chat",messages,stream:!!stream,temperature:.7})});}
  catch(e){return res.status(502).json({error:e.message});}
