@@ -12,20 +12,23 @@ using UnityEngine.Networking;
 [Serializable] class DouniDelta { public string content; }
 [Serializable] class DouniChoice { public DouniDelta delta; public DouniMsg message; }
 [Serializable] class DouniResp { public DouniChoice[] choices; }
+[Serializable] class DouniMemoryData { public List<DouniMsg> red=new List<DouniMsg>(); public List<DouniMsg> blue=new List<DouniMsg>(); }
 
 public class DouniDemo : MonoBehaviour {
  [Header("实验条件")] public bool streaming=true; public bool typingIndicator=true;
  public string proxyUrl="http://127.0.0.1:3000/chat";
- Text log, state; InputField entry, apiKeyInput; Button sendBtn, clearChatBtn, streamModeBtn, typingModeBtn; int active=0; bool busy=false;
+ Text log, state; InputField entry, apiKeyInput; Button sendBtn, clearChatBtn, streamModeBtn, typingModeBtn, memoryModeBtn; int active=0; bool busy=false;
  readonly List<DouniMsg>[] history={new List<DouniMsg>(),new List<DouniMsg>()};
  readonly string[] names={"红围脖小豆泥","蓝围脖小豆泥"};
  readonly string[] prompts={
  "你是红围脖小豆泥，活泼、热情、爱鼓励人，中文回答自然可爱，尽量简短。",
  "你是蓝围脖小豆泥，冷静、温柔、耐心，善于解释问题，中文回答清楚简洁。"
  };
+ bool localMemoryEnabled=true; string memoryPath;
  CatEar redEar,blueEar; float started,first=-1; string currentReply="";
  void Start(){
-  history[0].Add(new DouniMsg("system",prompts[0])); history[1].Add(new DouniMsg("system",prompts[1]));
+  memoryPath=Path.Combine(Application.persistentDataPath,"douni-user-memory.json");
+  LoadMemory(); EnsureSystemPrompts();
   BuildUI();
   var cam=Camera.main;if(cam){cam.orthographic=true;cam.orthographicSize=5.2f;cam.transform.position=new Vector3(0,0,-10);cam.backgroundColor=new Color(1f,.94f,.86f);}
   MakeCat(new Vector2(-4.6f,-.15f),new Color(.82f,.18f,.2f),out redEar);
@@ -41,6 +44,7 @@ public class DouniDemo : MonoBehaviour {
   log=Txt(c.transform,"选择一位小豆泥，开始聊天吧！",new Vector2(0,5),new Vector2(620,450),24,TextAnchor.UpperLeft);
   streamModeBtn=Btn(c.transform,"流式输出：开",new Vector2(-155,-250),new Vector2(220,42),ToggleStream);
   typingModeBtn=Btn(c.transform,"输入提示：开",new Vector2(155,-250),new Vector2(220,42),ToggleTyping);
+  memoryModeBtn=Btn(c.transform,"本地记忆：开",new Vector2(0,-205),new Vector2(220,38),ToggleMemory);
   state=Txt(c.transform,"本地代理未检测",new Vector2(0,-285),new Vector2(620,26),15,TextAnchor.MiddleCenter);
   entry=Input(c.transform,new Vector2(-70,-320),new Vector2(470,58));
   sendBtn=Btn(c.transform,"发送",new Vector2(255,-320),new Vector2(120,58),Send);\n  clearChatBtn=Btn(c.transform,"清空本轮",new Vector2(0,-365),new Vector2(160,42),ClearCurrentChat);
@@ -98,13 +102,18 @@ public class DouniDemo : MonoBehaviour {
  void Refresh(){string s="";for(int i=0;i<history[active].Count;i++){var m=history[active][i];if(m.role!="system")s+=(m.role=="user"?"你：":names[active]+"：")+m.content+"\n\n";}log.text=s; if(log.text.Length==0)log.text="你好呀！我是"+names[active]+"，想聊点什么？";}
  void ToggleStream(){if(busy)return;streaming=!streaming;streamModeBtn.GetComponentInChildren<Text>().text="流式输出："+(streaming?"开":"关");}
  void ToggleTyping(){if(busy)return;typingIndicator=!typingIndicator;typingModeBtn.GetComponentInChildren<Text>().text="输入提示："+(typingIndicator?"开":"关");}
- void ClearCurrentChat(){if(busy)return;history[active].Clear();history[active].Add(new DouniMsg("system",prompts[active]));Refresh();state.text="当前角色的临时聊天记录已清空";}\n void Send(){if(busy||string.IsNullOrWhiteSpace(entry.text))return;string q=entry.text.Trim();entry.text="";history[active].Add(new DouniMsg("user",q));Refresh();StartCoroutine(RequestReply(active));}
+ void ClearCurrentChat(){if(busy)return;history[active].Clear();history[active].Add(new DouniMsg("system",prompts[active]));Refresh();state.text="当前角色的临时聊天记录已清空";}\n void ToggleMemory(){if(busy)return;localMemoryEnabled=!localMemoryEnabled;memoryModeBtn.GetComponentInChildren<Text>().text="本地记忆："+(localMemoryEnabled?"开":"关");if(!localMemoryEnabled){DeleteMemoryFile();history[0].Clear();history[1].Clear();EnsureSystemPrompts();Refresh();state.text="本地记忆已关闭并清除";}else{SaveMemory();state.text="本地记忆已开启（仅保存在本机）";}}
+ void EnsureSystemPrompts(){for(int i=0;i<2;i++){if(history[i].Count==0||history[i][0].role!="system")history[i].Insert(0,new DouniMsg("system",prompts[i]));}}
+ void LoadMemory(){if(!File.Exists(memoryPath))return;try{var data=JsonUtility.FromJson<DouniMemoryData>(File.ReadAllText(memoryPath,Encoding.UTF8));if(data!=null){history[0]=data.red??new List<DouniMsg>();history[1]=data.blue??new List<DouniMsg>();}}catch{history[0].Clear();history[1].Clear();}}
+ void SaveMemory(){if(!localMemoryEnabled)return;try{var data=new DouniMemoryData{red=history[0],blue=history[1]};File.WriteAllText(memoryPath,JsonUtility.ToJson(data,true),Encoding.UTF8);}catch(Exception e){Debug.LogWarning("Douni local memory save failed: "+e.Message);}}
+ void DeleteMemoryFile(){try{if(File.Exists(memoryPath))File.Delete(memoryPath);}catch(Exception e){Debug.LogWarning("Douni memory delete failed: "+e.Message);}}
+ void Send(){if(busy||string.IsNullOrWhiteSpace(entry.text))return;string q=entry.text.Trim();entry.text="";history[active].Add(new DouniMsg("user",q));SaveMemory();Refresh();StartCoroutine(RequestReply(active));}
  IEnumerator RequestReply(int npc){
   busy=true;started=Time.realtimeSinceStartup;first=-1;currentReply="";redEar.SetTalking(npc==0);blueEar.SetTalking(npc==1);sendBtn.interactable=false;
   if(typingIndicator)state.text=names[npc]+" 正在思考…";else state.text=" ";
   string apiKey=apiKeyInput.text.Trim();
   if(string.IsNullOrEmpty(apiKey)){state.text="请先输入 DeepSeek API Key";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}
-  // App-managed memory: explicitly include recent local conversation context in this API request.
+  // App-managed memory: send the recent local chat context explicitly; no provider memory is used.
   var context=new List<DouniMsg>();context.Add(new DouniMsg("system",prompts[npc]));
   int firstContext=Math.Max(1,history[npc].Count-20);
   for(int i=firstContext;i<history[npc].Count;i++)context.Add(history[npc][i]);
@@ -120,7 +129,7 @@ public class DouniDemo : MonoBehaviour {
    if(streaming){ParseSSE(req.downloadHandler.text.Substring(Mathf.Min(read,req.downloadHandler.text.Length)));}
    else{try{var response=JsonUtility.FromJson<DouniResp>(req.downloadHandler.text);currentReply=response.choices[0].message.content;}catch{currentReply="回复解析失败，请检查代理服务。";}}
   }
-  if(first<0)first=Time.realtimeSinceStartup;history[npc].Add(new DouniMsg("assistant",currentReply));SaveMemory();
+  if(first<0)first=Time.realtimeSinceStartup;history[npc].Add(new DouniMsg("assistant",currentReply));SaveMemory();SaveMemory();
   if(!streaming)Refresh();else Refresh();
   LogResult(npc,Time.realtimeSinceStartup-started,(first-started)*1000f);
   busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);state.text="完成 · 首字延迟 "+((first-started)*1000f).ToString("F0")+" ms";
