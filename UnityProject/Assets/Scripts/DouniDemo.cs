@@ -26,8 +26,10 @@ public class DouniDemo : MonoBehaviour {
  CatEar redEar,blueEar; float started,first=-1; string currentReply="";
  void Start(){
   history[0].Add(new DouniMsg("system",prompts[0])); history[1].Add(new DouniMsg("system",prompts[1]));
-  BuildUI(); MakeCat(new Vector2(-560,-25),new Color(.82f,.18f,.2f),out redEar);
-  MakeCat(new Vector2(560,-25),new Color(.2f,.43f,.8f),out blueEar); Select(0);
+  BuildUI();
+  var cam=Camera.main;if(cam){cam.orthographic=true;cam.orthographicSize=5.2f;cam.transform.position=new Vector3(0,0,-10);cam.backgroundColor=new Color(1f,.94f,.86f);}
+  MakeCat(new Vector2(-4.6f,-.15f),new Color(.82f,.18f,.2f),out redEar);
+  MakeCat(new Vector2(4.6f,-.15f),new Color(.2f,.43f,.8f),out blueEar); Select(0);
  }
  void BuildUI(){
   var c=new GameObject("DouniCanvas",typeof(Canvas),typeof(CanvasScaler),typeof(GraphicRaycaster)).GetComponent<Canvas>(); c.renderMode=RenderMode.ScreenSpaceOverlay;
@@ -56,8 +58,8 @@ public class DouniDemo : MonoBehaviour {
   var t=Txt(g.transform,"",Vector2.zero,size,20,TextAnchor.MiddleLeft);t.color=new Color(.2f,.18f,.16f);f.textComponent=t;f.targetGraphic=g.GetComponent<Image>();f.lineType=InputField.LineType.MultiLineNewline;return f;
  }
  void MakeCat(Vector2 pos,Color scarf,out CatEar ears){
-  var go=new GameObject("小豆泥猫咪");go.transform.SetParent(transform,false);go.transform.localPosition=pos;go.transform.localScale=Vector3.one*2.4f;
-  var sr=go.AddComponent<SpriteRenderer>();sr.sprite=BuildCatSprite(scarf);
+  var go=new GameObject("小豆泥猫咪");go.transform.SetParent(transform,false);go.transform.position=new Vector3(pos.x,pos.y,0);go.transform.localScale=Vector3.one*.82f;
+  var sr=go.AddComponent<SpriteRenderer>();sr.sprite=BuildCatSprite(scarf);sr.sortingOrder=0;
   var earLeft=MakeEar(go.transform,new Vector3(-.48f,1.02f,0),-8f);
   var earRight=MakeEar(go.transform,new Vector3(.48f,1.02f,0),8f);
   ears=go.AddComponent<CatEar>();ears.left=earLeft;ears.right=earRight;
@@ -78,7 +80,7 @@ public class DouniDemo : MonoBehaviour {
  }
  Transform MakeEar(Transform parent,Vector3 pos,float angle){
   var g=new GameObject("EarPivot");g.transform.SetParent(parent,false);g.transform.localPosition=pos;g.transform.localRotation=Quaternion.Euler(0,0,angle);
-  var sr=g.AddComponent<SpriteRenderer>();sr.sprite=EarSprite();sr.sortingOrder=-1;return g.transform;
+  var sr=g.AddComponent<SpriteRenderer>();sr.sprite=EarSprite();sr.sortingOrder=1;return g.transform;
  }
  Sprite EarSprite(){
   int w=64,h=90;var tex=new Texture2D(w,h,TextureFormat.RGBA32,false);var px=new Color[w*h];Color clear=new Color(0,0,0,0),brown=new Color(.62f,.52f,.42f),ink=new Color(.04f,.04f,.04f);
@@ -123,6 +125,7 @@ public class DouniDemo : MonoBehaviour {
  }
 }
 public class CatEar : MonoBehaviour {
- bool talking=false;float phase=0;public void SetTalking(bool value){talking=value;if(!value)transform.localRotation=Quaternion.identity;}
- void Update(){if(talking){phase+=Time.deltaTime*7f;transform.localRotation=Quaternion.Euler(0,0,Mathf.Sin(phase)*2.8f);}}
+ public Transform left,right;bool talking=false;float phase=0;
+ public void SetTalking(bool value){talking=value;if(!value){if(left)left.localRotation=Quaternion.Euler(0,0,-8f);if(right)right.localRotation=Quaternion.Euler(0,0,8f);}}
+ void Update(){if(talking){phase+=Time.deltaTime*7f;if(left)left.localRotation=Quaternion.Euler(0,0,-8f+Mathf.Sin(phase)*4f);if(right)right.localRotation=Quaternion.Euler(0,0,8f-Mathf.Sin(phase)*4f);}}
 }
