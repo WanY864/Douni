@@ -7,6 +7,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Networking;
 using UnityEngine.EventSystems;
+using UnityEngine.EventSystems;
 
 [Serializable] public class DouniMsg { public string role; public string content; public DouniMsg(string r,string c){role=r;content=c;} }
 [Serializable] class DouniReq { public DouniMsg[] messages; public bool stream; }
@@ -18,7 +19,7 @@ using UnityEngine.EventSystems;
 public class DouniDemo : MonoBehaviour {
  [Header("实验条件")] public bool streaming=true; public bool typingIndicator=true;
  public string proxyUrl="http://127.0.0.1:3000/chat";
- Text log, state; InputField entry, apiKeyInput; ScrollRect chatScroll; RectTransform chatContent; string pendingStreamText=""; bool scrollPending=false; Button sendBtn, clearChatBtn, streamModeBtn, typingModeBtn, memoryModeBtn, memoryViewBtn, exportBtn; GameObject memoryPanel; int active=0; bool busy=false;
+ Text log, state; InputField entry, apiKeyInput; ScrollRect chatScroll; RectTransform chatContent; string pendingStreamText=""; bool scrollPending=false; ScrollRect chatScroll; RectTransform chatContent; string pendingStreamText=""; bool scrollPending=false; Button sendBtn, clearChatBtn, streamModeBtn, typingModeBtn, memoryModeBtn, memoryViewBtn, exportBtn; GameObject memoryPanel; int active=0; bool busy=false;
  readonly List<DouniMsg>[] history={new List<DouniMsg>(),new List<DouniMsg>()};
  readonly string[] names={"Red Scarf Douni","Blue Scarf Douni"};
  readonly string[] prompts={
@@ -36,6 +37,7 @@ public class DouniDemo : MonoBehaviour {
   MakeCat(new Vector2(4.6f,-.15f),new Color(.2f,.43f,.8f),out blueEar); Select(0);
  }
  void BuildUI(){
+  if(FindObjectOfType<EventSystem>()==null)new GameObject("EventSystem",typeof(EventSystem),typeof(StandaloneInputModule));
   if(FindObjectOfType<EventSystem>()==null)new GameObject("EventSystem",typeof(EventSystem),typeof(StandaloneInputModule));
   var c=new GameObject("DouniCanvas",typeof(Canvas),typeof(CanvasScaler),typeof(GraphicRaycaster)).GetComponent<Canvas>(); c.renderMode=RenderMode.ScreenSpaceOverlay;
   c.GetComponent<CanvasScaler>().uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize;c.GetComponent<CanvasScaler>().referenceResolution=new Vector2(1440,900);
@@ -115,7 +117,7 @@ public class DouniDemo : MonoBehaviour {
   for(int y=Mathf.Max(0,(int)(cy-ry));y<Mathf.Min(h,(int)(cy+ry));y++)for(int x=Mathf.Max(0,(int)(cx-rx));x<Mathf.Min(w,(int)(cx+rx));x++)if(Mathf.Pow((x-cx)/rx,2)+Mathf.Pow((y-cy)/ry,2)<=1)p[y*w+x]=c;
  }
  void Select(int i){if(busy)return;active=i;Refresh();redEar.SetTalking(i==0&&busy);blueEar.SetTalking(i==1&&busy);}
- void Refresh(){var sb=new StringBuilder();for(int i=0;i<history[active].Count;i++){var m=history[active][i];if(m.role!="system")sb.Append(m.role=="user"?"You: ":names[active]+": ").Append(m.content).Append("\\n\\n");}log.text=sb.Length==0?"Hello! I am "+names[active]+". What would you like to talk about?":sb.ToString();pendingStreamText="";scrollPending=true;}
+ void Refresh(){var sb=new StringBuilder();for(int i=0;i<history[active].Count;i++){var m=history[active][i];if(m.role!="system")sb.Append(m.role=="user"?"You: ":names[active]+": ").Append(m.content).Append("\n\n");}log.text=sb.Length==0?"Hello! I am "+names[active]+". What would you like to talk about?":sb.ToString();pendingStreamText="";scrollPending=true;}
  void ToggleStream(){if(busy)return;streaming=!streaming;streamModeBtn.GetComponentInChildren<Text>().text="流式输出："+(streaming?"开":"关");}
  void ToggleTyping(){if(busy)return;typingIndicator=!typingIndicator;typingModeBtn.GetComponentInChildren<Text>().text="输入提示："+(typingIndicator?"开":"关");}
  void ClearCurrentChat(){if(busy)return;history[active].Clear();history[active].Add(new DouniMsg("system",prompts[active]));SaveMemory();Refresh();state.text="Current character history cleared";}
