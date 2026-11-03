@@ -16,7 +16,7 @@ using UnityEngine.Networking;
 public class DouniDemo : MonoBehaviour {
  [Header("实验条件")] public bool streaming=true; public bool typingIndicator=true;
  public string proxyUrl="http://127.0.0.1:3000/chat";
- Text log, state; InputField entry, apiKeyInput; Button sendBtn; int active=0; bool busy=false;
+ Text log, state; InputField entry, apiKeyInput; Button sendBtn, clearChatBtn; int active=0; bool busy=false;
  readonly List<DouniMsg>[] history={new List<DouniMsg>(),new List<DouniMsg>()};
  readonly string[] names={"红围脖小豆泥","蓝围脖小豆泥"};
  readonly string[] prompts={
@@ -41,7 +41,7 @@ public class DouniDemo : MonoBehaviour {
   log=Txt(c.transform,"选择一位小豆泥，开始聊天吧！",new Vector2(0,5),new Vector2(620,450),24,TextAnchor.UpperLeft);
   state=Txt(c.transform,"本地代理未检测",new Vector2(0,-265),new Vector2(620,32),16,TextAnchor.MiddleCenter);
   entry=Input(c.transform,new Vector2(-70,-320),new Vector2(470,58));
-  sendBtn=Btn(c.transform,"发送",new Vector2(255,-320),new Vector2(120,58),Send);
+  sendBtn=Btn(c.transform,"发送",new Vector2(255,-320),new Vector2(120,58),Send);\n  clearChatBtn=Btn(c.transform,"清空本轮",new Vector2(0,-365),new Vector2(160,42),ClearCurrentChat);
  }
  GameObject Rect(Transform parent,string n,Vector2 pos,Vector2 size,Color color){
   var g=new GameObject(n,typeof(RectTransform),typeof(Image));g.transform.SetParent(parent,false);
@@ -94,7 +94,7 @@ public class DouniDemo : MonoBehaviour {
  }
  void Select(int i){if(busy)return;active=i;Refresh();redEar.SetTalking(i==0&&busy);blueEar.SetTalking(i==1&&busy);}
  void Refresh(){string s="";for(int i=0;i<history[active].Count;i++){var m=history[active][i];if(m.role!="system")s+=(m.role=="user"?"你：":names[active]+"：")+m.content+"\n\n";}log.text=s; if(log.text.Length==0)log.text="你好呀！我是"+names[active]+"，想聊点什么？";}
- void Send(){if(busy||string.IsNullOrWhiteSpace(entry.text))return;string q=entry.text.Trim();entry.text="";history[active].Add(new DouniMsg("user",q));Refresh();StartCoroutine(RequestReply(active));}
+ void ClearCurrentChat(){if(busy)return;history[active].Clear();history[active].Add(new DouniMsg("system",prompts[active]));Refresh();state.text="当前角色的临时聊天记录已清空";}\n void Send(){if(busy||string.IsNullOrWhiteSpace(entry.text))return;string q=entry.text.Trim();entry.text="";history[active].Add(new DouniMsg("user",q));Refresh();StartCoroutine(RequestReply(active));}
  IEnumerator RequestReply(int npc){
   busy=true;started=Time.realtimeSinceStartup;first=-1;currentReply="";redEar.SetTalking(npc==0);blueEar.SetTalking(npc==1);sendBtn.interactable=false;
   if(typingIndicator)state.text=names[npc]+" 正在思考…";else state.text=" ";
