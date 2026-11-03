@@ -106,9 +106,10 @@ public class DouniDemo : MonoBehaviour {
  void ToggleMemory(){if(busy)return;localMemoryEnabled=!localMemoryEnabled;memoryModeBtn.GetComponentInChildren<Text>().text="本地记忆："+(localMemoryEnabled?"开":"关");if(!localMemoryEnabled){DeleteMemoryFile();history[0].Clear();history[1].Clear();EnsureSystemPrompts();Refresh();state.text="本地记忆已关闭并清除";}else{SaveMemory();state.text="本地记忆已开启（仅保存在本机）";}}
  void EnsureSystemPrompts(){for(int i=0;i<2;i++){if(history[i].Count==0||history[i][0].role!="system")history[i].Insert(0,new DouniMsg("system",prompts[i]));}}
  void LoadMemory(){if(!File.Exists(memoryPath))return;try{var data=JsonUtility.FromJson<DouniMemoryData>(File.ReadAllText(memoryPath,Encoding.UTF8));if(data!=null){history[0]=data.red??new List<DouniMsg>();history[1]=data.blue??new List<DouniMsg>();}}catch{history[0].Clear();history[1].Clear();}}
+ void TrimHistory(int npc){while(history[npc].Count>81)history[npc].RemoveAt(1);}
  void SaveMemory(){if(!localMemoryEnabled)return;try{var data=new DouniMemoryData{red=history[0],blue=history[1]};File.WriteAllText(memoryPath,JsonUtility.ToJson(data,true),Encoding.UTF8);}catch(Exception e){Debug.LogWarning("Douni local memory save failed: "+e.Message);}}
  void DeleteMemoryFile(){try{if(File.Exists(memoryPath))File.Delete(memoryPath);}catch(Exception e){Debug.LogWarning("Douni memory delete failed: "+e.Message);}}
- void Send(){if(busy||string.IsNullOrWhiteSpace(entry.text))return;string q=entry.text.Trim();entry.text="";history[active].Add(new DouniMsg("user",q));SaveMemory();Refresh();StartCoroutine(RequestReply(active));}
+ void Send(){if(busy||string.IsNullOrWhiteSpace(entry.text))return;string q=entry.text.Trim();entry.text="";history[active].Add(new DouniMsg("user",q));TrimHistory(active);SaveMemory();Refresh();StartCoroutine(RequestReply(active));}
  IEnumerator RequestReply(int npc){
   busy=true;started=Time.realtimeSinceStartup;first=-1;currentReply="";redEar.SetTalking(npc==0);blueEar.SetTalking(npc==1);sendBtn.interactable=false;
   if(typingIndicator)state.text=names[npc]+" 正在思考…";else state.text=" ";
@@ -130,7 +131,7 @@ public class DouniDemo : MonoBehaviour {
    if(streaming){ParseSSE(req.downloadHandler.text.Substring(Mathf.Min(read,req.downloadHandler.text.Length)));if(string.IsNullOrEmpty(currentReply)){state.text="没有收到有效回复，请重试";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}}
    else{try{var response=JsonUtility.FromJson<DouniResp>(req.downloadHandler.text);if(response==null||response.choices==null||response.choices.Length==0||response.choices[0].message==null||string.IsNullOrEmpty(response.choices[0].message.content))throw new Exception("empty response");currentReply=response.choices[0].message.content;}catch{state.text="回复格式异常，请检查模型响应后重试";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}}
   }
-  if(first<0)first=Time.realtimeSinceStartup;history[npc].Add(new DouniMsg("assistant",currentReply));SaveMemory();
+  if(first<0)first=Time.realtimeSinceStartup;history[npc].Add(new DouniMsg("assistant",currentReply));TrimHistory(npc);SaveMemory();
   if(!streaming)Refresh();else Refresh();
   LogResult(npc,Time.realtimeSinceStartup-started,(first-started)*1000f);
   busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);state.text="完成 · 首字延迟 "+((first-started)*1000f).ToString("F0")+" ms";
@@ -160,8 +161,10 @@ public class DouniDemo : MonoBehaviour {
  void OnApplicationQuit(){if(apiKeyInput!=null)apiKeyInput.text="";}
  void OnDestroy(){if(apiKeyInput!=null)apiKeyInput.text="";}
  void LogResult(int npc,float total,float firstMs){
-  string path=Path.Combine(Application.persistentDataPath,"douni-experiment.csv");bool exists=File.Exists(path);
-  using(var sw=new StreamWriter(path,true,Encoding.UTF8)){if(!exists)sw.WriteLine("timestamp,npc,streaming,typing_indicator,first_token_ms,total_ms");sw.WriteLine(DateTime.Now.ToString("s")+","+names[npc]+","+streaming+","+typingIndicator+","+firstMs.ToString("F0")+","+(total*1000f).ToString("F0"));}
+  try{
+   string path=Path.Combine(Application.persistentDataPath,"douni-experiment.csv");bool exists=File.Exists(path);
+   using(var sw=new StreamWriter(path,true,Encoding.UTF8)){if(!exists)sw.WriteLine("timestamp,npc,streaming,typing_indicator,first_token_ms,total_ms");sw.WriteLine(DateTime.Now.ToString("s")+","+names[npc]+","+streaming+","+typingIndicator+","+firstMs.ToString("F0")+","+(total*1000f).ToString("F0"));}
+  }catch(Exception e){state.text="回复成功，但实验数据保存失败："+e.Message;}
  }
 }
 public class CatEar : MonoBehaviour {
