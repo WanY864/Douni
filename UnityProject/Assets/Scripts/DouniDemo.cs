@@ -17,7 +17,7 @@ using UnityEngine.Networking;
 public class DouniDemo : MonoBehaviour {
  [Header("实验条件")] public bool streaming=true; public bool typingIndicator=true;
  public string proxyUrl="http://127.0.0.1:3000/chat";
- Text log, state; InputField entry, apiKeyInput; Button sendBtn, clearChatBtn, streamModeBtn, typingModeBtn, memoryModeBtn; int active=0; bool busy=false;
+ Text log, state; InputField entry, apiKeyInput; Button sendBtn, clearChatBtn, streamModeBtn, typingModeBtn, memoryModeBtn, memoryViewBtn, exportBtn; GameObject memoryPanel; int active=0; bool busy=false;
  readonly List<DouniMsg>[] history={new List<DouniMsg>(),new List<DouniMsg>()};
  readonly string[] names={"红围脖小豆泥","蓝围脖小豆泥"};
  readonly string[] prompts={
@@ -44,7 +44,9 @@ public class DouniDemo : MonoBehaviour {
   log=Txt(c.transform,"选择一位小豆泥，开始聊天吧！",new Vector2(0,5),new Vector2(620,450),24,TextAnchor.UpperLeft);
   streamModeBtn=Btn(c.transform,"流式输出：开",new Vector2(-155,-250),new Vector2(220,42),ToggleStream);
   typingModeBtn=Btn(c.transform,"输入提示：开",new Vector2(155,-250),new Vector2(220,42),ToggleTyping);
-  memoryModeBtn=Btn(c.transform,"本地记忆：开",new Vector2(0,-205),new Vector2(220,38),ToggleMemory);
+  memoryModeBtn=Btn(c.transform,"本地记忆：开",new Vector2(-180,-205),new Vector2(180,38),ToggleMemory);
+  memoryViewBtn=Btn(c.transform,"查看记忆",new Vector2(20,-205),new Vector2(150,38),ToggleMemoryPanel);
+  exportBtn=Btn(c.transform,"导出 CSV",new Vector2(200,-205),new Vector2(150,38),ExportCsv);
   state=Txt(c.transform,"本地代理未检测",new Vector2(0,-285),new Vector2(620,26),15,TextAnchor.MiddleCenter);
   entry=Input(c.transform,new Vector2(-70,-320),new Vector2(470,58));
   sendBtn=Btn(c.transform,"发送",new Vector2(255,-320),new Vector2(120,58),Send);
@@ -105,6 +107,9 @@ public class DouniDemo : MonoBehaviour {
  void ToggleTyping(){if(busy)return;typingIndicator=!typingIndicator;typingModeBtn.GetComponentInChildren<Text>().text="输入提示："+(typingIndicator?"开":"关");}
  void ClearCurrentChat(){if(busy)return;history[active].Clear();history[active].Add(new DouniMsg("system",prompts[active]));SaveMemory();Refresh();state.text="当前角色的本地聊天记忆已清空";}
  void ToggleMemory(){if(busy)return;localMemoryEnabled=!localMemoryEnabled;memoryModeBtn.GetComponentInChildren<Text>().text="本地记忆："+(localMemoryEnabled?"开":"关");if(!localMemoryEnabled){DeleteMemoryFile();history[0].Clear();history[1].Clear();EnsureSystemPrompts();Refresh();state.text="本地记忆已关闭并清除";}else{SaveMemory();state.text="本地记忆已开启（仅保存在本机）";}}
+ void ToggleMemoryPanel(){if(busy)return;if(memoryPanel!=null){Destroy(memoryPanel);memoryPanel=null;return;}memoryPanel=Rect(GameObject.Find("DouniCanvas").transform,"MemoryPanel",Vector2.zero,new Vector2(600,470),new Color(1f,.96f,.9f,.99f));var text=Txt(memoryPanel.transform,"本地记忆（仅保存在此设备）\n\n"+BuildMemoryText(active),Vector2.zero,new Vector2(540,400),17,TextAnchor.UpperLeft);Btn(memoryPanel.transform,"关闭",new Vector2(0,-210),new Vector2(140,42),()=>{Destroy(memoryPanel);memoryPanel=null;});}
+ string BuildMemoryText(int npc){var b=new StringBuilder();for(int i=1;i<history[npc].Count;i++)b.Append(history[npc][i].role=="user"?"用户：":"小豆泥：").Append(history[npc][i].content).Append("\n\n");return b.ToString();}
+ void ExportCsv(){string path=Path.Combine(Application.persistentDataPath,"douni-experiment.csv");if(!File.Exists(path)){state.text="还没有实验数据可导出";return;}GUIUtility.systemCopyBuffer=path;state.text="CSV 文件路径已复制到剪贴板";}
  void EnsureSystemPrompts(){for(int i=0;i<2;i++){if(history[i].Count==0||history[i][0].role!="system")history[i].Insert(0,new DouniMsg("system",prompts[i]));}}
  void LoadMemory(){if(!File.Exists(memoryPath))return;try{var data=JsonUtility.FromJson<DouniMemoryData>(File.ReadAllText(memoryPath,Encoding.UTF8));if(data!=null){history[0]=data.red??new List<DouniMsg>();history[1]=data.blue??new List<DouniMsg>();}}catch{history[0].Clear();history[1].Clear();}}
  void TrimHistory(int npc){while(history[npc].Count>81)history[npc].RemoveAt(1);}
