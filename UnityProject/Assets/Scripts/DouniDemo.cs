@@ -114,9 +114,26 @@ public class DouniDemo : MonoBehaviour {
   LogResult(npc,Time.realtimeSinceStartup-started,(first-started)*1000f);
   busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);state.text="完成 · 首字延迟 "+((first-started)*1000f).ToString("F0")+" ms";
  }
+ string sseRemainder="";
  void ParseSSE(string chunk){
-  foreach(string line in chunk.Split('\n')){if(!line.StartsWith("data: "))continue;string data=line.Substring(6).Trim();if(data=="[DONE]")continue;
-   try{var r=JsonUtility.FromJson<DouniResp>(data);string part=r.choices[0].delta.content;if(!string.IsNullOrEmpty(part)){if(first<0)first=Time.realtimeSinceStartup;currentReply+=part;log.text=log.text+part;}}catch{}
+  sseRemainder+=chunk;
+  int newline;
+  while((newline=sseRemainder.IndexOf('\n'))>=0){
+   string line=sseRemainder.Substring(0,newline).TrimEnd('\r');
+   sseRemainder=sseRemainder.Substring(newline+1);
+   if(!line.StartsWith("data: "))continue;
+   string data=line.Substring(6).Trim();
+   if(data=="[DONE]")continue;
+   try{
+    var r=JsonUtility.FromJson<DouniResp>(data);
+    if(r.choices!=null&&r.choices.Length>0&&r.choices[0].delta!=null){
+     string part=r.choices[0].delta.content;
+     if(!string.IsNullOrEmpty(part)){
+      if(first<0)first=Time.realtimeSinceStartup;
+      currentReply+=part;log.text+=part;
+     }
+    }
+   }catch{}
   }
  }
  void LogResult(int npc,float total,float firstMs){
