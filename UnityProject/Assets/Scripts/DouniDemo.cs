@@ -16,7 +16,7 @@ using UnityEngine.Networking;
 public class DouniDemo : MonoBehaviour {
  [Header("实验条件")] public bool streaming=true; public bool typingIndicator=true;
  public string proxyUrl="http://127.0.0.1:3000/chat";
- Text log, state; InputField entry; Button sendBtn; int active=0; bool busy=false;
+ Text log, state; InputField entry, apiKeyInput; Button sendBtn; int active=0; bool busy=false;
  readonly List<DouniMsg>[] history={new List<DouniMsg>(),new List<DouniMsg>()};
  readonly string[] names={"红围脖小豆泥","蓝围脖小豆泥"};
  readonly string[] prompts={
@@ -37,7 +37,8 @@ public class DouniDemo : MonoBehaviour {
   var panel=Rect(c.transform,"ChatPanel",new Vector2(0,0),new Vector2(700,690),new Color(1,.96f,.9f,.97f));
   Button red=Btn(c.transform,"红围脖小豆泥",new Vector2(-170,300),new Vector2(250,58),()=>Select(0));
   Button blue=Btn(c.transform,"蓝围脖小豆泥",new Vector2(170,300),new Vector2(250,58),()=>Select(1));
-  log=Txt(c.transform,"选择一位小豆泥，开始聊天吧！",new Vector2(0,25),new Vector2(620,500),24,TextAnchor.UpperLeft);
+  apiKeyInput=Input(c.transform,new Vector2(0,235),new Vector2(560,42));apiKeyInput.inputType=InputField.InputType.Password;apiKeyInput.placeholder=Txt(apiKeyInput.transform,"在这里输入 DeepSeek API Key（仅本次运行使用）",Vector2.zero,new Vector2(540,40),16,TextAnchor.MiddleLeft);
+  log=Txt(c.transform,"选择一位小豆泥，开始聊天吧！",new Vector2(0,5),new Vector2(620,450),24,TextAnchor.UpperLeft);
   state=Txt(c.transform,"本地代理未检测",new Vector2(0,-265),new Vector2(620,32),16,TextAnchor.MiddleCenter);
   entry=Input(c.transform,new Vector2(-70,-320),new Vector2(470,58));
   sendBtn=Btn(c.transform,"发送",new Vector2(255,-320),new Vector2(120,58),Send);
@@ -97,9 +98,12 @@ public class DouniDemo : MonoBehaviour {
  IEnumerator RequestReply(int npc){
   busy=true;started=Time.realtimeSinceStartup;first=-1;currentReply="";redEar.SetTalking(npc==0);blueEar.SetTalking(npc==1);sendBtn.interactable=false;
   if(typingIndicator)state.text=names[npc]+" 正在思考…";else state.text=" ";
-  var reqBody=JsonUtility.ToJson(new DouniReq{messages=history[npc].ToArray(),stream=streaming});
+  string apiKey=apiKeyInput.text.Trim();
+  if(string.IsNullOrEmpty(apiKey)){state.text="请先输入 DeepSeek API Key";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}
+  // Stateless chat: each API request contains only this NPC's system prompt and the current message.
+  var reqBody=JsonUtility.ToJson(new DouniReq{messages=new DouniMsg[]{new DouniMsg("system",prompts[npc]),new DouniMsg("user",history[npc][history[npc].Count-1].content)},stream=streaming});
   using(var req=new UnityWebRequest(proxyUrl,"POST")){
-   req.uploadHandler=new UploadHandlerRaw(Encoding.UTF8.GetBytes(reqBody));req.downloadHandler=new DownloadHandlerBuffer();req.SetRequestHeader("Content-Type","application/json");
+   req.uploadHandler=new UploadHandlerRaw(Encoding.UTF8.GetBytes(reqBody));req.downloadHandler=new DownloadHandlerBuffer();req.SetRequestHeader("Content-Type","application/json");req.SetRequestHeader("x-deepseek-api-key",apiKey);
    var op=req.SendWebRequest();int read=0;
    while(!op.isDone){
     if(streaming){string all=req.downloadHandler.text;if(all.Length>read){string fresh=all.Substring(read);read=all.Length;ParseSSE(fresh);}}
