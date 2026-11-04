@@ -19,7 +19,7 @@ using UnityEngine.EventSystems;
 public class DouniDemo : MonoBehaviour {
  [Header("实验条件")] public bool streaming=true; public bool typingIndicator=true;
  public string proxyUrl="http://127.0.0.1:3000/chat";
- Text log, state; InputField entry, apiKeyInput; ScrollRect chatScroll; RectTransform chatContent; string pendingStreamText=""; bool scrollPending=false; ScrollRect chatScroll; RectTransform chatContent; string pendingStreamText=""; bool scrollPending=false; Button sendBtn, clearChatBtn, streamModeBtn, typingModeBtn, memoryModeBtn, memoryViewBtn, exportBtn; GameObject memoryPanel; int active=0; bool busy=false;
+ Text log, state; InputField entry, apiKeyInput; ScrollRect chatScroll; RectTransform chatContent; Text liveBubble; string pendingStreamText=""; bool scrollPending=false,followOutput=true; ScrollRect chatScroll; RectTransform chatContent; string pendingStreamText=""; bool scrollPending=false; Button sendBtn, clearChatBtn, streamModeBtn, typingModeBtn, memoryModeBtn, memoryViewBtn, exportBtn; GameObject memoryPanel; int active=0; bool busy=false;
  readonly List<DouniMsg>[] history={new List<DouniMsg>(),new List<DouniMsg>()};
  readonly string[] names={"Red Scarf Douni","Blue Scarf Douni"};
  readonly string[] prompts={
@@ -76,12 +76,29 @@ public class DouniDemo : MonoBehaviour {
   var vr=vg.GetComponent<RectTransform>();vr.anchorMin=vr.anchorMax=new Vector2(.5f,.5f);vr.anchoredPosition=new Vector2(0,5);vr.sizeDelta=new Vector2(620,450);vg.GetComponent<Image>().color=new Color(1f,.985f,.96f,.2f);vg.GetComponent<Mask>().showMaskGraphic=false;
   var cg=new GameObject("ChatContent",typeof(RectTransform),typeof(VerticalLayoutGroup),typeof(ContentSizeFitter));cg.transform.SetParent(vg.transform,false);
   chatContent=cg.GetComponent<RectTransform>();chatContent.anchorMin=new Vector2(0,1);chatContent.anchorMax=new Vector2(1,1);chatContent.pivot=new Vector2(.5f,1);chatContent.sizeDelta=Vector2.zero;
-  var group=cg.GetComponent<VerticalLayoutGroup>();group.childControlHeight=true;group.childForceExpandHeight=false;group.childControlWidth=true;group.childForceExpandWidth=true;group.spacing=8;group.padding=new RectOffset(10,10,10,10);cg.GetComponent<ContentSizeFitter>().verticalFit=ContentSizeFitter.FitMode.PreferredSize;
-  log=Txt(cg.transform,"",Vector2.zero,new Vector2(590,32),20,TextAnchor.UpperLeft);log.supportRichText=false;log.horizontalOverflow=HorizontalWrapMode.Wrap;log.verticalOverflow=VerticalWrapMode.Overflow;
-  var tr=log.rectTransform;tr.anchorMin=new Vector2(0,1);tr.anchorMax=new Vector2(1,1);tr.pivot=new Vector2(.5f,1);tr.sizeDelta=new Vector2(0,32);log.gameObject.AddComponent<ContentSizeFitter>().verticalFit=ContentSizeFitter.FitMode.PreferredSize;
+  var group=cg.GetComponent<VerticalLayoutGroup>();group.childControlHeight=true;group.childForceExpandHeight=false;group.childControlWidth=true;group.childForceExpandWidth=true;group.spacing=10;group.padding=new RectOffset(12,12,12,12);cg.GetComponent<ContentSizeFitter>().verticalFit=ContentSizeFitter.FitMode.PreferredSize;
   chatScroll=vg.AddComponent<ScrollRect>();chatScroll.viewport=vr;chatScroll.content=chatContent;chatScroll.horizontal=false;chatScroll.vertical=true;chatScroll.movementType=ScrollRect.MovementType.Clamped;chatScroll.inertia=true;chatScroll.decelerationRate=.12f;chatScroll.scrollSensitivity=28;
+  chatScroll.onValueChanged.AddListener(v=>{if(chatScroll.verticalNormalizedPosition>.08f)followOutput=false;else followOutput=true;});
  }
- void LateUpdate(){if(!string.IsNullOrEmpty(pendingStreamText)){log.text+=pendingStreamText;pendingStreamText="";scrollPending=true;}if(scrollPending&&chatScroll!=null){Canvas.ForceUpdateCanvases();LayoutRebuilder.ForceRebuildLayoutImmediate(chatContent);chatScroll.verticalNormalizedPosition=0f;scrollPending=false;}}
+ void AddBubble(string message,bool fromUser,bool live){
+  var row=new GameObject("MessageRow",typeof(RectTransform),typeof(HorizontalLayoutGroup),typeof(ContentSizeFitter));row.transform.SetParent(chatContent,false);
+  var rowRt=row.GetComponent<RectTransform>();rowRt.sizeDelta=new Vector2(590,40);
+  var rowLayout=row.GetComponent<HorizontalLayoutGroup>();rowLayout.childAlignment=fromUser?TextAnchor.MiddleRight:TextAnchor.MiddleLeft;rowLayout.childControlHeight=true;rowLayout.childForceExpandHeight=false;rowLayout.childControlWidth=false;rowLayout.childForceExpandWidth=false;
+  row.GetComponent<ContentSizeFitter>().verticalFit=ContentSizeFitter.FitMode.PreferredSize;
+  var bubble=new GameObject("Bubble",typeof(RectTransform),typeof(Image),typeof(VerticalLayoutGroup),typeof(ContentSizeFitter));bubble.transform.SetParent(row.transform,false);
+  bubble.GetComponent<Image>().color=fromUser?new Color(0.97f,.84f,.77f):new Color(1f,1f,1f,.94f);
+  var bg=bubble.GetComponent<VerticalLayoutGroup>();bg.padding=new RectOffset(16,16,10,10);bg.childControlHeight=true;bg.childForceExpandHeight=false;bg.childControlWidth=true;bg.childForceExpandWidth=true;
+  var fit=bubble.GetComponent<ContentSizeFitter>();fit.verticalFit=ContentSizeFitter.FitMode.PreferredSize;
+  var le=bubble.AddComponent<LayoutElement>();le.preferredWidth=fromUser?390:450;le.flexibleWidth=0;
+  var tx=Txt(bubble.transform,message,Vector2.zero,new Vector2(fromUser?358:418,32),18,fromUser?TextAnchor.MiddleRight:TextAnchor.MiddleLeft);tx.horizontalOverflow=HorizontalWrapMode.Wrap;tx.verticalOverflow=VerticalWrapMode.Overflow;tx.supportRichText=false;
+  var txFit=tx.gameObject.AddComponent<ContentSizeFitter>();txFit.verticalFit=ContentSizeFitter.FitMode.PreferredSize;
+  var txRt=tx.rectTransform;txRt.sizeDelta=new Vector2(fromUser?358:418,32);
+  if(live)liveBubble=tx;
+ }
+ void LateUpdate(){
+  if(!string.IsNullOrEmpty(pendingStreamText)&&liveBubble!=null){liveBubble.text+=pendingStreamText;pendingStreamText="";scrollPending=true;}
+  if(scrollPending&&chatScroll!=null){Canvas.ForceUpdateCanvases();LayoutRebuilder.ForceRebuildLayoutImmediate(chatContent);if(followOutput)chatScroll.verticalNormalizedPosition=0f;scrollPending=false;}
+ }
  void MakeCat(Vector2 pos,Color scarf,out CatEar ears){
   var go=new GameObject("小豆泥猫咪");go.transform.SetParent(transform,false);go.transform.position=new Vector3(pos.x,pos.y,0);go.transform.localScale=Vector3.one*.82f;
   var sr=go.AddComponent<SpriteRenderer>();sr.sprite=BuildCatSprite(scarf);sr.sortingOrder=0;
@@ -117,7 +134,13 @@ public class DouniDemo : MonoBehaviour {
   for(int y=Mathf.Max(0,(int)(cy-ry));y<Mathf.Min(h,(int)(cy+ry));y++)for(int x=Mathf.Max(0,(int)(cx-rx));x<Mathf.Min(w,(int)(cx+rx));x++)if(Mathf.Pow((x-cx)/rx,2)+Mathf.Pow((y-cy)/ry,2)<=1)p[y*w+x]=c;
  }
  void Select(int i){if(busy)return;active=i;Refresh();redEar.SetTalking(i==0&&busy);blueEar.SetTalking(i==1&&busy);}
- void Refresh(){var sb=new StringBuilder();for(int i=0;i<history[active].Count;i++){var m=history[active][i];if(m.role!="system")sb.Append(m.role=="user"?"You: ":names[active]+": ").Append(m.content).Append("\n\n");}log.text=sb.Length==0?"Hello! I am "+names[active]+". What would you like to talk about?":sb.ToString();pendingStreamText="";scrollPending=true;}
+ void Refresh(){
+  foreach(Transform child in chatContent)Destroy(child.gameObject);
+  liveBubble=null;
+  for(int i=0;i<history[active].Count;i++){var m=history[active][i];if(m.role=="system")continue;AddBubble(m.content,m.role=="user",false);}
+  if(history[active].Count<=1)AddBubble("Hello! I am "+names[active]+". What would you like to talk about?",false,false);
+  scrollPending=true;followOutput=true;
+ }
  void ToggleStream(){if(busy)return;streaming=!streaming;streamModeBtn.GetComponentInChildren<Text>().text="流式输出："+(streaming?"开":"关");}
  void ToggleTyping(){if(busy)return;typingIndicator=!typingIndicator;typingModeBtn.GetComponentInChildren<Text>().text="输入提示："+(typingIndicator?"开":"关");}
  void ClearCurrentChat(){if(busy)return;history[active].Clear();history[active].Add(new DouniMsg("system",prompts[active]));SaveMemory();Refresh();state.text="Current character history cleared";}
@@ -132,7 +155,7 @@ public class DouniDemo : MonoBehaviour {
  void DeleteMemoryFile(){try{if(File.Exists(memoryPath))File.Delete(memoryPath);}catch(Exception e){Debug.LogWarning("Douni memory delete failed: "+e.Message);}}
  void Send(){if(busy||string.IsNullOrWhiteSpace(entry.text))return;string q=entry.text.Trim();entry.text="";history[active].Add(new DouniMsg("user",q));TrimHistory(active);SaveMemory();Refresh();StartCoroutine(RequestReply(active));}
  IEnumerator RequestReply(int npc){
-  busy=true;started=Time.realtimeSinceStartup;first=-1;currentReply="";pendingStreamText="";redEar.SetTalking(npc==0);blueEar.SetTalking(npc==1);sendBtn.interactable=false;
+  busy=true;started=Time.realtimeSinceStartup;first=-1;currentReply="";pendingStreamText="";liveBubble=null;redEar.SetTalking(npc==0);blueEar.SetTalking(npc==1);sendBtn.interactable=false;
   if(typingIndicator)state.text=names[npc]+" is typing…";else state.text=" ";
   string apiKey=apiKeyInput.text.Trim();
   if(string.IsNullOrEmpty(apiKey)){state.text="Please enter your DeepSeek API Key.";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}
@@ -149,11 +172,11 @@ public class DouniDemo : MonoBehaviour {
     yield return null;
    }
    if(req.result!=UnityWebRequest.Result.Success){state.text="Request failed: "+req.error+" (check proxy, network, API key and quota).";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}
-   if(streaming){ParseSSE(req.downloadHandler.text.Substring(Mathf.Min(read,req.downloadHandler.text.Length)));if(string.IsNullOrEmpty(currentReply)){state.text="No response received. Please try again.";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}}
+   if(streaming){if(liveBubble==null)AddBubble("",false,true);ParseSSE(req.downloadHandler.text.Substring(Mathf.Min(read,req.downloadHandler.text.Length)));if(string.IsNullOrEmpty(currentReply)){state.text="No response received. Please try again.";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}}
    else{try{var response=JsonUtility.FromJson<DouniResp>(req.downloadHandler.text);if(response==null||response.choices==null||response.choices.Length==0||response.choices[0].message==null||string.IsNullOrEmpty(response.choices[0].message.content))throw new Exception("empty response");currentReply=response.choices[0].message.content;}catch{state.text="Invalid response format. Please try again.";busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);yield break;}}
   }
   if(first<0)first=Time.realtimeSinceStartup;history[npc].Add(new DouniMsg("assistant",currentReply));TrimHistory(npc);SaveMemory();
-  if(!streaming)Refresh();else Refresh();
+  Refresh();
   LogResult(npc,Time.realtimeSinceStartup-started,(first-started)*1000f);
   busy=false;sendBtn.interactable=true;redEar.SetTalking(false);blueEar.SetTalking(false);state.text="Done · First token: "+((first-started)*1000f).ToString("F0")+" ms";
  }
@@ -173,7 +196,7 @@ public class DouniDemo : MonoBehaviour {
      string part=r.choices[0].delta.content;
      if(!string.IsNullOrEmpty(part)){
       if(first<0)first=Time.realtimeSinceStartup;
-      currentReply+=part;pendingStreamText+=part;
+      if(liveBubble==null)AddBubble("",false,true);currentReply+=part;pendingStreamText+=part;
      }
     }
    }catch{}
